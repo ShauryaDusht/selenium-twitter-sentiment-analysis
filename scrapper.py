@@ -20,22 +20,17 @@ def scrape_nitter_tweets(keyword, count):
     Returns:
     - Saves tweets to a CSV file named keyword_date.csv
     """
-    # Setup Chrome options
     chrome_options = Options()
-    # Uncomment the line below if you want to run in headless mode
-    # chrome_options.add_argument("--headless")
+    # chrome_options.add_argument("--headless") # means run without opening a window
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920,1080")
     
-    # Initialize the driver
     driver = webdriver.Chrome(options=chrome_options)
     
     try:
-        # Go to Nitter
         driver.get("https://nitter.net/")
         print(f"Searching for tweets containing: {keyword}")
         
-        # Try multiple methods to find the search input
         search_box = None
         try_selectors = [
             (By.NAME, "q"),
@@ -47,7 +42,6 @@ def scrape_nitter_tweets(keyword, count):
         
         for selector_type, selector in try_selectors:
             try:
-                # Wait for the element to be present
                 search_box = WebDriverWait(driver, 5).until(
                     EC.presence_of_element_located((selector_type, selector))
                 )
@@ -61,11 +55,9 @@ def scrape_nitter_tweets(keyword, count):
             driver.save_screenshot("nitter_debug.png")
             raise Exception("Failed to locate search input on the page")
             
-        # Clear and input the search term
         search_box.clear()
         search_box.send_keys(keyword)
         
-        # Try multiple methods to find the search button
         search_button = None
         try_button_selectors = [
             (By.CSS_SELECTOR, "span.icon-search"),
@@ -85,14 +77,12 @@ def scrape_nitter_tweets(keyword, count):
             except TimeoutException:
                 continue
                 
-        # If we couldn't find a button, just press Enter in the search box
         if search_button:
             search_button.click()
         else:
             print("Could not find search button, pressing Enter instead")
             search_box.send_keys(Keys.RETURN)
         
-        # Wait for search results to load - try different selectors
         result_found = False
         result_selectors = [
             (By.CLASS_NAME, "timeline-item"),
@@ -116,17 +106,14 @@ def scrape_nitter_tweets(keyword, count):
             driver.save_screenshot("nitter_no_results.png")
             raise Exception("No search results found")
         
-        # Initialize list to store tweets
         tweets = []
         last_tweet_count = 0
         no_new_tweets_count = 0
         
         while len(tweets) < count:
-            # Scroll down to load more tweets dynamically if needed
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)  # Wait for potential dynamic content to load
+            time.sleep(2) 
             
-            # Extract tweets from current page
             tweet_selectors = [
                 (By.CLASS_NAME, "timeline-item"),
                 (By.CSS_SELECTOR, ".timeline .timeline-item"),
@@ -153,13 +140,13 @@ def scrape_nitter_tweets(keyword, count):
                     break
                     
                 try:
-                    # Extract tweet data - try multiple ways to find each element
+                    # Extract tweet data
                     username = ""
                     fullname = ""
                     tweet_text = ""
                     date = ""
                     
-                    # Try to get username
+                    # username
                     try:
                         username = tweet.find_element(By.CLASS_NAME, "username").text
                     except NoSuchElementException:
@@ -168,7 +155,7 @@ def scrape_nitter_tweets(keyword, count):
                         except NoSuchElementException:
                             username = "Unknown"
                     
-                    # Try to get fullname
+                    # fullname
                     try:
                         fullname = tweet.find_element(By.CLASS_NAME, "fullname").text
                     except NoSuchElementException:
@@ -177,7 +164,7 @@ def scrape_nitter_tweets(keyword, count):
                         except NoSuchElementException:
                             fullname = "Unknown"
                     
-                    # Try to get tweet text
+                    # tweet text
                     try:
                         tweet_text = tweet.find_element(By.CLASS_NAME, "tweet-content").text
                     except NoSuchElementException:
@@ -186,7 +173,7 @@ def scrape_nitter_tweets(keyword, count):
                         except NoSuchElementException:
                             tweet_text = "No text available"
                     
-                    # Try to get date
+                    # date
                     try:
                         date_element = tweet.find_element(By.CLASS_NAME, "tweet-date").find_element(By.TAG_NAME, "a")
                         date = date_element.get_attribute("title") or date_element.text
@@ -197,7 +184,6 @@ def scrape_nitter_tweets(keyword, count):
                         except NoSuchElementException:
                             date = "Unknown date"
                     
-                    # Check if we already have this tweet
                     tweet_data = {
                         "username": username,
                         "fullname": fullname,
@@ -205,7 +191,7 @@ def scrape_nitter_tweets(keyword, count):
                         "date": date
                     }
                     
-                    # Only add if not already in our list (to avoid duplicates)
+                    # only add uniques
                     if tweet_data not in tweets:
                         tweets.append(tweet_data)
                         print(f"Scraped {len(tweets)}/{count} tweets")
@@ -214,13 +200,12 @@ def scrape_nitter_tweets(keyword, count):
                     print(f"Error extracting tweet data: {str(e)}")
                     continue
             
-            # Check if we got any new tweets
             if len(tweets) == last_tweet_count:
                 no_new_tweets_count += 1
-                if no_new_tweets_count >= 3:  # If no new tweets after 3 attempts
+                if no_new_tweets_count >= 3:
                     print("No new tweets found after multiple attempts")
                     
-                    # Try to find and click "Load more" button
+                    # find and click "Load more" button
                     load_more_found = False
                     load_more_selectors = [
                         (By.XPATH, "//a[contains(text(), 'Load more')]"),
@@ -239,8 +224,8 @@ def scrape_nitter_tweets(keyword, count):
                             driver.execute_script("arguments[0].click();", load_more)
                             load_more_found = True
                             print("Clicked 'Load more' button")
-                            time.sleep(3)  # Wait longer for content to load
-                            no_new_tweets_count = 0  # Reset counter
+                            time.sleep(3)
+                            no_new_tweets_count = 0
                             break
                         except TimeoutException:
                             continue
@@ -249,11 +234,11 @@ def scrape_nitter_tweets(keyword, count):
                         print("No 'Load more' button found. Cannot load additional tweets.")
                         break
             else:
-                no_new_tweets_count = 0  # Reset counter if we got new tweets
+                no_new_tweets_count = 0
                 
             last_tweet_count = len(tweets)
         
-        # Save tweets to CSV
+        # Save tweets
         current_date = datetime.now().strftime("%Y%m%d")
         filename = f"{keyword}_{current_date}.csv"
         
@@ -261,7 +246,7 @@ def scrape_nitter_tweets(keyword, count):
             fieldnames = ['username', 'fullname', 'text', 'date']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
-            for tweet in tweets[:count]:  # Ensure we only save up to count tweets
+            for tweet in tweets[:count]:
                 writer.writerow(tweet)
         
         print(f"Successfully scraped {len(tweets)} tweets and saved to {filename}")
@@ -272,7 +257,6 @@ def scrape_nitter_tweets(keyword, count):
         print("Screenshot saved as error_screenshot.png")
     
     finally:
-        # Close the browser
         driver.quit()
 
 if __name__ == "__main__":
