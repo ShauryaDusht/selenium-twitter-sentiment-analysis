@@ -2,3 +2,5 @@
 __pycache__/
 __pycache__/*
 finetuned_bert_sentiment_model/
+finetuned_bert_sentiment_model/*
+*.zip
